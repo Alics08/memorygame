@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles/style.css') }}">
+    <title>Memory Game</title>
+</head>
+<body>
+    <h1>Memory Game</h1>
+    <div id="game-info">
+        <span id="timer">Time: 0s</span>
+        <span id="score">Score: 0</span>
+        <select id="difficulty">
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Hard</option>
+        </select>
+        <button id="play-button">Play</button>
+        <button id="reset-button">Reset Game</button>
+    </div>
+    <div id="game-board-container">
+        <div id="game-board"></div>
+    </div>
+    <script>
+        let flippedCards = [];
+        let matchedCards = 0;
+        let totalPairs = 4; // Default for easy level
+        let score = 0;
+        let timer;
+        let seconds = 0;
+        const colors = ['#ff69b4', '#ff4500', '#1e90ff', '#32cd32', '#ffa500', '#800080', '#00ced1', '#ff6347'];
+        let gameStarted = false;
+        let difficulty = 'easy';
+
+        // Initialize the game when the DOM is fully loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('play-button').addEventListener('click', startGame);
+            document.getElementById('reset-button').addEventListener('click', resetGame);
+            document.getElementById('difficulty').addEventListener('change', selectDifficulty);
+        });
+
+        // Function to select difficulty
+        function selectDifficulty() {
+            difficulty = document.getElementById('difficulty').value;
+            if (difficulty === 'easy') {
+                totalPairs = 4;
+            } else if (difficulty === 'medium') {
+                totalPairs = 8;
+            } else {
+                totalPairs = 16;
+            }
+            resetGame();
+        }
+
+        // Function to start the game
+        function startGame() {
+            if (!gameStarted) {
+                startTimer();
+                gameStarted = true;
+                document.getElementById('play-button').disabled = true; // Disable the play button once the game starts
+            }
+        }
+
+        // Function to start the timer
+        function startTimer() {
+            timer = setInterval(() => {
+                seconds++;
+                document.getElementById('timer').textContent = `Time: ${seconds}s`;
+            }, 1000);
+        }
+
+        // Function to flip a card
+        function flipCard() {
+            if (gameStarted && flippedCards.length < 2 && !this.classList.contains('flipped')) {
+                this.classList.add('flipped');
+                this.textContent = this.dataset.value; // Show the card value
+
+                flippedCards.push(this);
+
+                if (flippedCards.length === 2) {
+                    setTimeout(checkMatch, 1000);
+                }
+            }
+        }
+
+        // Function to check if two flipped cards match
+        function checkMatch() {
+            const card1 = flippedCards[0];
+            const card2 = flippedCards[1];
+
+            fetch(`/api/check/${card1.dataset.index}/${card2.dataset.index}/${difficulty}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.match) {
+                        matchedCards++;
+                        score += 10; // Increment score for a match
+                        document.getElementById('score').textContent = `Score: ${score}`;
+
+                        if (matchedCards === totalPairs) {
+                            clearInterval(timer);
+                            alert(`You win! Time: ${seconds}s, Score: ${score}`);
+                        }
+                    } else {
+                        // If no match, flip the cards back after a short delay
+                        setTimeout(() => {
+                            card1.classList.remove('flipped');
+                            card1.textContent = ''; // Hide the card
+                            card2.classList.remove('flipped');
+                            card2.textContent = ''; // Hide the card
+                        }, 1000);
+                    }
+                    flippedCards = [];
+                });
+        }
+
+        // Function to reset the game
+        function resetGame() {
+            clearInterval(timer);
+            seconds = 0;
+            score = 0;
+            matchedCards = 0;
+            gameStarted = false;
+            document.getElementById('timer').textContent = `Time: 0s`;
+            document.getElementById('score').textContent = `Score: 0`;
+            document.getElementById('play-button').disabled = false; // Enable the play button on reset
+
+            fetch(`/api/cards/${difficulty}`)
+                .then(response => response.json())
+                .then(cards => {
+                    const gameBoard = document.getElementById('game-board');
+                    gameBoard.innerHTML = '';
+                    cards.forEach((card, index) => {
+                        const cardElement = document.createElement('div');
+                        cardElement.classList.add('card');
+                        cardElement.dataset.index = index;
+                        cardElement.dataset.value = card;
+                        cardElement.style.backgroundColor = colors[index % colors.length]; // Apply different colors
+                        cardElement.addEventListener('click', flipCard);
+                        gameBoard.appendChild(cardElement);
+                    });
+
+                    // Update the grid layout based on the difficulty
+                    if (difficulty === 'easy') {
+                        gameBoard.style.gridTemplateColumns = 'repeat(4, 50px)';
+                    } else if (difficulty === 'medium') {
+                        gameBoard.style.gridTemplateColumns = 'repeat(4, 50px)';
+                    } else {
+                        gameBoard.style.gridTemplateColumns = 'repeat(8, 50px)';
+                    }
+                });
+        }
+    </script>
+</body>
+</html>
